@@ -12,7 +12,17 @@ Puppet::Type.newtype(:keystone_endpoint) do
     newvalues(/\S+\/\S+/)
   end
 
-  newproperty(:id) do
+  newproperty(:id_public) do
+    validate do |v|
+      raise(Puppet::Error, 'This is a read only property')
+    end
+  end
+  newproperty(:id_admin) do
+    validate do |v|
+      raise(Puppet::Error, 'This is a read only property')
+    end
+  end
+  newproperty(:id_internal) do
     validate do |v|
       raise(Puppet::Error, 'This is a read only property')
     end

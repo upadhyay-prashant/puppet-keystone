@@ -105,7 +105,7 @@ Puppet::Type.type(:keystone_user).provide(
       unless auth_url = self.class.get_auth_url
         raise(Puppet::Error::OpenstackAuthInputError, "Could not find authentication url to validate user's password.")
       end
-      auth_url << "/v#{credentials.version}" unless auth_url =~ /\/v\d(\.\d)?$/
+      auth_url << "/v#{credentials.version}" unless auth_url =~ /\/v\d(\.\d)?\/$/
       credentials.auth_url = auth_url
       credentials.password = resource[:password]
       credentials.user_id = id
@@ -124,7 +124,7 @@ Puppet::Type.type(:keystone_user).provide(
         credentials.domain_name = domain
       end
       begin
-        token = Puppet::Provider::Openstack.request('token', 'issue', ['--format', 'value'], credentials)
+        token = Puppet::Provider::Openstack.request('token', 'issue', ['--format', 'value'],credentials)
       rescue Puppet::Error::OpenstackUnauthorizedError
         # password is invalid
       else

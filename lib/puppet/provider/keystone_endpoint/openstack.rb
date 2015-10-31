@@ -7,7 +7,7 @@ Puppet::Type.type(:keystone_endpoint).provide(
 
   desc "Provider to manage keystone endpoints."
 
-  @credentials = Puppet::Provider::Openstack::CredentialsV2_0.new
+  @credentials = Puppet::Provider::Openstack::CredentialsV3.new
 
   def initialize(value={})
     super(value)
@@ -22,23 +22,41 @@ Puppet::Type.type(:keystone_endpoint).provide(
     properties << '--region'
     properties << region
     if resource[:public_url]
-      properties << '--publicurl'
-      properties << resource[:public_url]
+      temp = []
+      temp << 'public'
+      temp << resource[:public_url]
+      pra = []
+      pra << properties
+      pra << temp
+      self.class.request('endpoint', 'create', pra)
     end
     if resource[:internal_url]
-      properties << '--internalurl'
-      properties << resource[:internal_url]
+      temp = []
+      temp << 'internal'
+      temp << resource[:internal_url]
+      pra = []
+      pra << properties
+      pra << temp
+      self.class.request('endpoint', 'create', pra)
     end
     if resource[:admin_url]
-      properties << '--adminurl'
-      properties << resource[:admin_url]
+      temp = []
+      temp << 'admin'
+      temp << resource[:admin_url]
+      pra = []
+      pra << properties
+      pra << temp
+      self.class.request('endpoint', 'create', pra)
     end
-     self.class.request('endpoint', 'create', properties)
+     #self.class.request('endpoint', 'create', properties)
      @property_hash[:ensure] = :present
   end
 
   def destroy
-    self.class.request('endpoint', 'delete', @property_hash[:id])
+# i could have added logic to selectively delete, for the time being taking easier way to delete all and create all 
+    self.class.request('endpoint', 'delete', @property_hash[:id_admin])
+    self.class.request('endpoint', 'delete', @property_hash[:id_internal])
+    self.class.request('endpoint', 'delete', @property_hash[:id_public])
     @property_hash.clear
   end
 
@@ -74,23 +92,51 @@ Puppet::Type.type(:keystone_endpoint).provide(
     @property_hash[:admin_url]
   end
 
-  def id
-    @property_hash[:id]
+  def id_internal
+    @property_hash[:id_internal]
+  end
+  def id_admin
+    @property_hash[:id_admin]
+  end
+  def id_public
+    @property_hash[:id_public]
   end
 
   def self.instances
-    list = request('endpoint', 'list', '--long')
+    list = request('endpoint', 'list')
+    #print list
+    pr_list= []
+    require 'set'
+    s1=Set.new
     list.collect do |endpoint|
-      new(
-        :name         => "#{endpoint[:region]}/#{endpoint[:service_name]}",
+      pr=list.select { |temp| temp[:service_name].casecmp(endpoint[:service_name])==0}
+      pr.sort! { | temp, temp1| temp[:interface].casecmp(temp1[:interface])}
+      s1.add(pr)
+      end
+    res=[]
+    s1.each {|element|
+      endpoint = {}
+      element.each { |temp|
+       endpoint[:name] = "#{temp[:region]}/#{temp[:service_name]}"
+       endpoint[:region] = temp[:region]
+       role=temp[:interface]
+       endpoint[(role.to_s+"_url").intern] = temp[:url]
+# id needs to be fixed here
+       endpoint[("id_"+role.to_s).intern] = temp[:id]
+      }
+      res << new(
+        :name         => endpoint[:name],
         :ensure       => :present,
-        :id           => endpoint[:id],
+        :id_admin     => endpoint[:id],
+        :id_public    => endpoint[:id],
+        :id_internal  => endpoint[:id],
         :region       => endpoint[:region],
-        :public_url   => endpoint[:publicurl],
-        :internal_url => endpoint[:internalurl],
-        :admin_url    => endpoint[:adminurl]
+        :public_url   => endpoint[:public_url],
+        :internal_url => endpoint[:internal_url],
+        :admin_url    => endpoint[:admin_url]
       )
-    end
+    }
+  return res
   end
 
   def self.prefetch(resources)
